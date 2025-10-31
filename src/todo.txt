@@ -1,0 +1,11 @@
+A simple user interface mimicing the trade ups of counterstrike
+
+
+todo
+main menu (login / register)
+open case 
+sell skin
+buy skin
+trade up skin to higher rarity
+
+// save it all inside an sqllite database
