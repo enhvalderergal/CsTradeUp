@@ -54,14 +54,9 @@ pub fn show_main_menu(app: &mut crate::CsApp, ctx: &egui::Context) {
 
 
 pub fn show_splash(_app: &mut crate::CsApp, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
-        ui.with_layout(
-            egui::Layout::centered_and_justified(egui::Direction::TopDown),
-            |ui| {
-                ui.label(egui::RichText::new("CsTradeUp").size(72.0));
-            },
-        );
-    });
+    // Forward to the dedicated splash animation module which keeps the
+    // animation code separated from the main menu.
+    crate::ui::splash::show_splash(_app, ctx);
 }
 
 pub fn show_logged_in(app: &mut crate::CsApp, ctx: &egui::Context, username: String) {
