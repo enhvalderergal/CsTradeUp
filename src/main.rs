@@ -30,6 +30,9 @@ pub struct CsApp {
     screen: Screen,
     pub db_path: String,
 
+    // current logged-in user id (set after successful auth)
+    pub current_user_id: Option<i64>,
+
     // temp auth fields
     pub username: String,
     pub password: String,
@@ -51,10 +54,11 @@ impl Default for CsApp {
         Self {
             screen: Screen::MainMenu,
             db_path,
+            current_user_id: None,
             username: String::new(),
             password: String::new(),
             message,
-            // Show a little splash screen for 2 seconds (ui/main_menu.rs)
+            // Show a little splash screen for 10 seconds (ui/splash.rs)
             splash_deadline: Instant::now() + Duration::from_secs(2),
         }
     }
@@ -64,7 +68,8 @@ impl eframe::App for CsApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // If we're still in the splash period, show the splash screen
         if Instant::now() < self.splash_deadline {
-            ui::main_menu::show_splash(self, ctx);
+            // forward to the dedicated splash module
+            ui::splash::show_splash(self, ctx);
             return;
         }
 
@@ -72,11 +77,11 @@ impl eframe::App for CsApp {
             Screen::MainMenu => ui::main_menu::show_main_menu(self, ctx),
             Screen::Auth(mode) => ui::auth::show_auth(self, ctx, mode.clone()),
             Screen::LoggedIn(name) => ui::main_menu::show_logged_in(self, ctx, name.clone()),
-            Screen::Buy => scripts::buy::show_buy(self, ctx),
-            Screen::Sell => scripts::sell::show_sell(self, ctx),
-            Screen::Tradeup => scripts::tradeup::show_tradeup(self, ctx),
-            Screen::OpenSkins => scripts::open_skins::show_open_skins(self, ctx),
-            Screen::Inventory => scripts::inventory::show_inventory(self, ctx),
+            Screen::Buy => ui::screens::buy::show_buy(self, ctx),
+            Screen::Sell => ui::screens::sell::show_sell(self, ctx),
+            Screen::Tradeup => ui::screens::tradeup::show_tradeup(self, ctx),
+            Screen::OpenSkins => ui::screens::open_skins::show_open_skins(self, ctx),
+            Screen::Inventory => ui::screens::inventory::show_inventory(self, ctx),
         }
     }
 }

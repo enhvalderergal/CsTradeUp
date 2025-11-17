@@ -1,6 +1,6 @@
 use eframe::egui;
 
-pub fn show_tradeup(app: &mut crate::CsApp, ctx: &egui::Context) {
+pub fn show_template(app: &mut crate::CsApp, ctx: &egui::Context) {
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.with_layout(
             egui::Layout::centered_and_justified(egui::Direction::TopDown),

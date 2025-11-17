@@ -57,6 +57,7 @@ pub fn show_auth(app: &mut crate::CsApp, ctx: &egui::Context, mode: AuthMode) {
                             Ok(Some(user)) => {
                                 // Save logged-in username to the app state so other screens can reference it
                                 app.username = user.username.clone();
+                                app.current_user_id = Some(user.id);
                                 app.screen = crate::Screen::LoggedIn(user.username.clone());
                                 app.message.clear();
                                 app.password.clear();

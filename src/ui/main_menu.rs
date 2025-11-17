@@ -78,49 +78,55 @@ pub fn show_logged_in(app: &mut crate::CsApp, ctx: &egui::Context, username: Str
 
                 // Main actions after login. The actual app :O
                 let button_h = 44.0;
-                ui.spacing_mut().item_spacing = egui::vec2(0.0, 6.0);
+                // Slightly tighter vertical spacing between rows for a compact
+                // game-like layout and remove the manual add_space that caused
+                // an extra gap before the first row.
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, 4.0);
+                let btn_w = 160.0_f32;
+                let gap = 8.0_f32;
 
-                // Anchor the whole row from the middle by computing left padding
-                ui.add_space(6.0);
-                let btn_w = 160.0;
-                let gap = 8.0;
-                let num = 5.0; // Buy, Sell, Tradeup, Open Skins, Inventory
-                let total_width = btn_w * num + gap * (num - 1.0);
+                let labels = ["Buy", "Sell", "Tradeup", "Open Skins", "Inventory"];
                 let avail_w = ui.available_size().x;
-                let left_pad = ((avail_w - total_width) / 2.0).max(0.0);
 
-                ui.horizontal(|ui| {
-                    ui.add_space(left_pad);
+                // How many columns can we fit? Ensure at least 1.
+                let mut columns = ((avail_w + gap) / (btn_w + gap)).floor() as usize;
+                if columns == 0 {
+                    columns = 1;
+                }
 
-                    if ui.add_sized([btn_w, button_h], egui::Button::new("Buy")).clicked() {
-                        app.screen = Screen::Buy;
-                        app.message.clear();
-                    }
-                    ui.add_space(gap);
+                // Clamp columns to the number of buttons available
+                columns = columns.min(labels.len());
 
-                    if ui.add_sized([btn_w, button_h], egui::Button::new("Sell")).clicked() {
-                        app.screen = Screen::Sell;
-                        app.message.clear();
-                    }
-                    ui.add_space(gap);
+                let mut idx = 0;
+                while idx < labels.len() {
+                    let remaining = labels.len() - idx;
+                    let cols = columns.min(remaining);
 
-                    if ui.add_sized([btn_w, button_h], egui::Button::new("Tradeup")).clicked() {
-                        app.screen = Screen::Tradeup;
-                        app.message.clear();
-                    }
-                    ui.add_space(gap);
+                    let row_total = btn_w * (cols as f32) + gap * ((cols - 1) as f32);
+                    let left_pad = ((avail_w - row_total) / 2.0).max(0.0);
 
-                    if ui.add_sized([btn_w, button_h], egui::Button::new("Open Skins")).clicked() {
-                        app.screen = Screen::OpenSkins;
-                        app.message.clear();
-                    }
-                    ui.add_space(gap);
+                    ui.horizontal(|ui| {
+                        ui.add_space(left_pad);
+                        for j in 0..cols {
+                            let label = labels[idx + j];
+                            if ui.add_sized([btn_w, button_h], egui::Button::new(label)).clicked() {
+                                match label {
+                                    "Buy" => { app.screen = Screen::Buy; app.message.clear(); }
+                                    "Sell" => { app.screen = Screen::Sell; app.message.clear(); }
+                                    "Tradeup" => { app.screen = Screen::Tradeup; app.message.clear(); }
+                                    "Open Skins" => { app.screen = Screen::OpenSkins; app.message.clear(); }
+                                    "Inventory" => { app.screen = Screen::Inventory; app.message.clear(); }
+                                    _ => {}
+                                }
+                            }
+                            if j < cols - 1 {
+                                ui.add_space(gap);
+                            }
+                        }
+                    });
 
-                    if ui.add_sized([btn_w, button_h], egui::Button::new("Inventory")).clicked() {
-                        app.screen = Screen::Inventory;
-                        app.message.clear();
-                    }
-                });
+                    idx += cols;
+                }
 
                 ui.add_space(10.0);
                 // Center Logout under the row
