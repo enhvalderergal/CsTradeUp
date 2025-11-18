@@ -2,6 +2,7 @@ pub mod main_menu;
 pub mod auth;
 pub mod splash;
 pub mod screens;
+pub mod rarity;
 
 use eframe::egui;
 

@@ -66,7 +66,14 @@ pub fn show_logged_in(app: &mut crate::CsApp, ctx: &egui::Context, username: Str
             ui.add_space(8.0);
             ui.label(egui::RichText::new("🔷").size(18.0));
             ui.add_space(6.0);
-            ui.label(egui::RichText::new(&app.username).strong());
+            // Show username and balance (if available)
+            let mut label = app.username.clone();
+            if let Some(uid) = app.current_user_id {
+                if let Ok(Some(user)) = crate::db::get_user_by_id(&app.db_path, uid) {
+                    label = format!("{} — ${:.2}", user.username, user.balance);
+                }
+            }
+            ui.label(egui::RichText::new(label).strong());
         });
     });
 
@@ -76,64 +83,50 @@ pub fn show_logged_in(app: &mut crate::CsApp, ctx: &egui::Context, username: Str
             |ui| {
               
 
-                // Main actions after login. The actual app :O
+                // Main actions after login: vertical stacked buttons with
+                // separators between them to ensure consistent spacing.
                 let button_h = 44.0;
-                // Slightly tighter vertical spacing between rows for a compact
-                // game-like layout and remove the manual add_space that caused
-                // an extra gap before the first row.
-                ui.spacing_mut().item_spacing = egui::vec2(0.0, 4.0);
-                let btn_w = 160.0_f32;
-                let gap = 8.0_f32;
+                let btn_w = 220.0_f32;
+                let spacing = 8.0_f32;
+
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, spacing);
 
                 let labels = ["Buy", "Sell", "Tradeup", "Open Skins", "Inventory"];
-                let avail_w = ui.available_size().x;
 
-                // How many columns can we fit? Ensure at least 1.
-                let mut columns = ((avail_w + gap) / (btn_w + gap)).floor() as usize;
-                if columns == 0 {
-                    columns = 1;
-                }
+                // Stack buttons vertically, centered horizontally. Show a
+                // bold header above the buttons. Use consistent spacing but
+                // no separator lines between buttons (user requested no lines).
+                ui.vertical_centered(|ui| {
+                    // Header for logged-in screen
+                    ui.label(
+                        egui::RichText::new("TRADE HUB")
+                            .heading()
+                            .strong()
+                            .size(32.0),
+                    );
+                    ui.add_space(spacing * 1.25);
 
-                // Clamp columns to the number of buttons available
-                columns = columns.min(labels.len());
-
-                let mut idx = 0;
-                while idx < labels.len() {
-                    let remaining = labels.len() - idx;
-                    let cols = columns.min(remaining);
-
-                    let row_total = btn_w * (cols as f32) + gap * ((cols - 1) as f32);
-                    let left_pad = ((avail_w - row_total) / 2.0).max(0.0);
-
-                    ui.horizontal(|ui| {
-                        ui.add_space(left_pad);
-                        for j in 0..cols {
-                            let label = labels[idx + j];
-                            if ui.add_sized([btn_w, button_h], egui::Button::new(label)).clicked() {
-                                match label {
-                                    "Buy" => { app.screen = Screen::Buy; app.message.clear(); }
-                                    "Sell" => { app.screen = Screen::Sell; app.message.clear(); }
-                                    "Tradeup" => { app.screen = Screen::Tradeup; app.message.clear(); }
-                                    "Open Skins" => { app.screen = Screen::OpenSkins; app.message.clear(); }
-                                    "Inventory" => { app.screen = Screen::Inventory; app.message.clear(); }
-                                    _ => {}
-                                }
-                            }
-                            if j < cols - 1 {
-                                ui.add_space(gap);
+                    for (i, label) in labels.iter().enumerate() {
+                        if ui.add_sized([btn_w, button_h], egui::Button::new(*label)).clicked() {
+                            match *label {
+                                "Buy" => { app.screen = Screen::Buy; app.message.clear(); }
+                                "Sell" => { app.screen = Screen::Sell; app.message.clear(); }
+                                "Tradeup" => { app.screen = Screen::Tradeup; app.message.clear(); }
+                                "Open Skins" => { app.screen = Screen::OpenSkins; app.message.clear(); }
+                                "Inventory" => { app.screen = Screen::Inventory; app.message.clear(); }
+                                _ => {}
                             }
                         }
-                    });
 
-                    idx += cols;
-                }
+                        // Uniform spacing between buttons (no visual separator)
+                        if i < labels.len() - 1 {
+                            ui.add_space(spacing);
+                        }
+                    }
 
-                ui.add_space(10.0);
-                // Center Logout under the row
-                let logout_w = 120.0;
-                let logout_left = ((avail_w - logout_w) / 2.0).max(0.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(logout_left);
+                    ui.add_space(spacing * 1.5);
+                    // Center Logout under the stacked buttons
+                    let logout_w = 140.0;
                     if ui.add_sized([logout_w, 32.0], egui::Button::new("Logout")).clicked() {
                         app.screen = Screen::MainMenu;
                         app.username.clear();

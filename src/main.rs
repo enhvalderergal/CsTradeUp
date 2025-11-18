@@ -5,6 +5,23 @@ mod scripts;
 
 use eframe::egui;
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
+
+/// Small helper storing a texture handle and original image size
+pub struct TextureInfo {
+    pub handle: egui::TextureHandle,
+    pub size: [usize; 2],
+}
+
+/// State used while animating an open-case roll.
+pub struct OpenCaseState {
+    pub options: Vec<crate::models::Skin>,
+    pub selected: crate::models::Skin,
+    pub selected_inv_id: i64,
+    pub start: Instant,
+    pub duration: Duration,
+    pub finished: bool,
+}
 
 /// Represents the different screens in the application
 #[derive(Clone)]
@@ -38,6 +55,14 @@ pub struct CsApp {
     pub password: String,
     pub message: String,
     splash_deadline: Instant,
+    // Texture cache for loaded skin images. Keyed by skin name (or id as string).
+    pub textures: HashMap<String, TextureInfo>,
+    // Optional open-case animation state
+    pub open_case_state: Option<OpenCaseState>,
+    // Inventory ids selected for a tradeup
+    pub tradeup_selection: Vec<i64>,
+    // Selected skin id in the Buy screen
+    pub buy_selection: Option<i64>,
 }
 
 impl Default for CsApp {
@@ -58,6 +83,10 @@ impl Default for CsApp {
             username: String::new(),
             password: String::new(),
             message,
+            textures: HashMap::new(),
+            open_case_state: None,
+            tradeup_selection: Vec::new(),
+            buy_selection: None,
             // Show a little splash screen for 10 seconds (ui/splash.rs)
             splash_deadline: Instant::now() + Duration::from_secs(2),
         }

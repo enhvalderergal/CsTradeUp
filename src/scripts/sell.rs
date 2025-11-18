@@ -1,18 +1,10 @@
-use eframe::egui;
+use crate::db;
 
-pub fn show_sell(_app: &mut crate::CsApp, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
-        ui.with_layout(
-            egui::Layout::centered_and_justified(egui::Direction::TopDown),
-            |ui| {
-                ui.heading("Sell Skins (placeholder)");
-                ui.add_space(10.0);
-                ui.label("This screen will let the user select skins to sell. (TODO)");
-                ui.add_space(10.0);
-                if ui.button("Back").clicked() {
-                    _app.screen = crate::Screen::LoggedIn(_app.username.clone());
-                }
-            },
-        );
-    });
+/// Sell an owned inventory item. Credits the user's balance by `price`
+/// and removes the inventory row. Returns the new balance on success.
+pub fn sell_item(db_path: &str, user_id: i64, inventory_id: i64, price: f64) -> Result<f64, String> {
+    // Credit the user's balance first, then remove the inventory item.
+    let new_bal = db::change_user_balance(db_path, user_id, price)?;
+    db::remove_inventory_item(db_path, inventory_id)?;
+    Ok(new_bal)
 }

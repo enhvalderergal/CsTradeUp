@@ -1,18 +1,24 @@
-use eframe::egui;
+use crate::db;
 
-pub fn show_buy(_app: &mut crate::CsApp, ctx: &egui::Context) {
-    egui::CentralPanel::default().show(ctx, |ui| {
-        ui.with_layout(
-            egui::Layout::centered_and_justified(egui::Direction::TopDown),
-            |ui| {
-                ui.heading("Buy Skins (placeholder)");
-                ui.add_space(10.0);
-                ui.label("This screen will show available skins to buy. (TODO)");
-                ui.add_space(10.0);
-                if ui.button("Back").clicked() {
-                    _app.screen = crate::Screen::LoggedIn(_app.username.clone());
-                }
-            },
-        );
-    });
+/// Attempt to purchase a skin for a user.
+/// Performs balance checks, updates the user's balance and inserts an inventory row.
+/// Returns Ok(()) on success or Err(String) with a user-friendly error message.
+pub fn attempt_buy(db_path: &str, user_id: i64, skin_id: i64, price: f64) -> Result<(), String> {
+    match db::get_user_by_id(db_path, user_id) {
+        Ok(Some(user)) => {
+            if user.balance < price {
+                return Err("Not enough funds to buy this skin".into());
+            }
+
+            // Deduct balance
+            db::change_user_balance(db_path, user_id, -price)?;
+
+            // Add inventory row for the purchased skin
+            db::add_inventory_item(db_path, user_id, skin_id)?;
+
+            Ok(())
+        }
+        Ok(None) => Err("User not found".into()),
+        Err(e) => Err(e),
+    }
 }

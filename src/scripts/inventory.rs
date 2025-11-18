@@ -1,67 +1,64 @@
-use crate::models::InventoryItem;
+use crate::models::OwnedSkin;
+use crate::db;
 
 /// Domain struct describing a skin to be added/managed in inventory.
 #[derive(Debug, Clone)]
 pub struct SkinInfo {
     pub name: String,
-    pub rarity: String,
+    pub rarity: Option<String>,
     pub price: f64,
+    pub collection: Option<String>,
+    pub weapon_type: Option<String>,
+    pub image_base64: Option<String>,
 }
 
-/// Add a skin to a user's inventory. If the skin already exists (by name) we increment quantity,
-/// otherwise we insert a new row. Returns the resulting InventoryItem on success.
-pub fn add_skin(
-    db_path: &str,
-    user_id: i64,
-    skin: SkinInfo,
-    quantity: i32,
-) -> Result<InventoryItem, String> {
-    // Fetch current inventory for the user and check if the skin already exists
-    let items = crate::db::get_inventory_for_user(db_path, user_id)?;
-
-    if let Some(mut existing) = items.into_iter().find(|it| it.skin_name == skin.name) {
-        let new_q = existing.quantity.saturating_add(quantity);
-        crate::db::update_inventory_quantity(db_path, existing.id, new_q)?;
-        existing.quantity = new_q;
-        // Optionally update rarity/price if changed -- for now we leave existing metadata
-        Ok(existing)
+/// Add a skin to a user's inventory by ensuring the skin exists in the catalog
+/// and then inserting/updating an inventory row that references the catalog id.
+pub fn add_skin(db_path: &str, user_id: i64, skin: SkinInfo) -> Result<OwnedSkin, String> {
+    // Ensure the skin exists in the catalog
+    let existing_skin = db::get_skin_by_name(db_path, &skin.name)?;
+    let catalog_skin = if let Some(s) = existing_skin {
+        s
     } else {
-        crate::db::add_inventory_item(
+        db::add_skin(
             db_path,
-            user_id,
             &skin.name,
-            &skin.rarity,
+            skin.rarity.as_deref(),
             skin.price,
-            quantity,
-        )
-    }
+            skin.collection.as_deref(),
+            skin.weapon_type.as_deref(),
+            skin.image_base64.as_deref(),
+        )?
+    };
+
+    // Always insert a new inventory ownership row (duplicates allowed).
+    let inv = db::add_inventory_item(db_path, user_id, catalog_skin.id)?;
+    Ok(OwnedSkin { inventory: inv, skin: Some(catalog_skin) })
 }
 
 /// Remove `quantity` units of the named skin from the user's inventory. If quantity reaches 0, delete the row.
-pub fn remove_skin_by_name(db_path: &str, user_id: i64, skin_name: &str, quantity: i32) -> Result<(), String> {
-    let items = crate::db::get_inventory_for_user(db_path, user_id)?;
-    if let Some(existing) = items.into_iter().find(|it| it.skin_name == skin_name) {
-        if quantity >= existing.quantity {
-            crate::db::remove_inventory_item(db_path, existing.id)?;
+pub fn remove_skin_by_name(db_path: &str, user_id: i64, skin_name: &str) -> Result<(), String> {
+    // Find catalog skin by name and remove a single ownership row for the user (if any)
+    if let Some(skin) = db::get_skin_by_name(db_path, skin_name)? {
+        let items = db::get_inventory_for_user(db_path, user_id)?;
+        if let Some(existing) = items.into_iter().find(|it| it.inventory.skin_id == skin.id) {
+            db::remove_inventory_item(db_path, existing.inventory.id)?;
+            Ok(())
         } else {
-            let new_q = existing.quantity - quantity;
-            crate::db::update_inventory_quantity(db_path, existing.id, new_q)?;
+            Err(format!("No skin named '{}' found for user {}", skin_name, user_id))
         }
-        Ok(())
     } else {
-        Err(format!("No skin named '{}' found for user {}", skin_name, user_id))
+        Err(format!("No catalog skin named '{}'", skin_name))
     }
 }
 
 /// Get all inventory items for a user (thin wrapper around db layer).
-pub fn list_inventory(db_path: &str, user_id: i64) -> Result<Vec<InventoryItem>, String> {
+pub fn list_inventory(db_path: &str, user_id: i64) -> Result<Vec<OwnedSkin>, String> {
     crate::db::get_inventory_for_user(db_path, user_id)
 }
 
 /// Set quantity of a specific inventory item by id.
-pub fn set_quantity(db_path: &str, item_id: i64, quantity: i32) -> Result<(), String> {
-    crate::db::update_inventory_quantity(db_path, item_id, quantity)
-}
+// set_quantity removed; inventory no longer tracks a numeric quantity.
 
 /// Remove an item by id.
 pub fn remove_item(db_path: &str, item_id: i64) -> Result<(), String> {
