@@ -6,7 +6,7 @@ use std::time::Instant;
 /// Splash screen with steam-like bokeh background and spinner.
 pub fn show_splash(app: &mut crate::CsApp, ctx: &egui::Context) {
     // Should roughly match how CsApp sets splash_deadline
-    let total_secs: f32 = 10.0;
+    let total_secs: f32 = 5.0;
 
     // Progress 0..1
     let now = Instant::now();

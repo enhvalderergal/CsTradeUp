@@ -1,110 +1,75 @@
-# CS Trade Up – README
+# CsTradeUp
 
-Dette projekt er en CS:GO trade‑up applikation skrevet i Rust. Formålet er at håndtere skins, trade‑ups og inventar via en simpel SQL lite database, samtidig med at UI‑delen fungerer som en ren frontend adskilt fra backend‑logikken.
+CsTradeUp is a small Rust-based desktop application that simulates buying, selling, opening, and trading-up Counter-Strike style skins. It is implemented with `eframe`/`egui` for the UI and `rusqlite` for a lightweight local SQLite database.
 
-## Projektstruktur
-
-Projektet er opdelt i følgende hoveddele:
-
-- **Backend / Core Logic**
-  
-  - Databasehåndtering (SQLite via `cs_trade_up.db`)
-    
-  - Koden til databasen kan findes i`db.rs`hvor hver funktion der benyttes er lavet
-    
-  - Databasen includere også login og registereing af user Databasens form er beskrevet i `modules.rs`
-    
-  - **Frontend / UI (Egui)**
-    
-- - UI‑skærme og visuelle komponenter ligger i deres egne moduler
-    
-  - Alle UI modulerne (screens) ligger i SRC/UI/(buy,sell,....)
-    
-
-Denne adskillelse gør koden lettere at teste, lettere at udbygge og mere vedligeholdelsesvenlig.
+This README collects development notes, build/run instructions, and seeding guidance (previously in `SEEDING.md`).
 
 ---
 
-# Seedning af Skins-kataloget
+## Features
 
-Her er en detaljeret gennemgang af hvordan seedning af skins fungerer samt hvordan du kører seederen manuelt. (Altså hvordan en dev skal ligge nye skins til)
+- GUI client with screens: Buy, Sell, Tradeup, Open Skins, Inventory
+- Local SQLite database with normalized `skins` and `inventory` tables
+- Per-user balance, buy/sell flows, trade-up (consume 10 items → produce next-rarity item)
+- Base64-decoded images are cached as textures with original image size to preserve aspect ratio
+- Seedable skins catalog from `data/skins.json`
 
-## Hvor seed‑data ligger
+## Repo layout
 
-- **Udviklerens seed‑fil**:
-  
-  - `data/skins.json` – Indeholder et JSON array af skin‑objekter.
-    
-  - Hvert objekt bør minimum have et `name`‑felt.
-    
-  - Valgfri felter:
-    
-    - `rarity`
-      
-    - `price`
-      
-    - `collection`
-      
-    - `weapon_type`
-      
-    - `image_base64`
-      
-- **Database fil**:
-  
-  - `cs_trade_up.db` – oprettes automatisk i projektets rodmappe hvis den ikke findes.
+- `Cargo.toml` — Rust project manifest
+- `src/` — application sources
+  - `main.rs` — app bootstrap and `CsApp` state
+  - `db.rs` — SQLite schema and helpers
+  - `models.rs` — domain models (Skin, Inventory row, etc.)
+  - `scripts/` — higher-level operations (buy, open_case, tradeup, utilities)
+  - `ui/` — `egui` UI modules and screen implementations
+- `data/skins.json` — optional seed data (developer-provided)
+- `cs_trade_up.db` — default runtime DB file (created at project root)
 
-## Adfærd ved opstart
+## Build & run
 
-Når applikationen startes, kalder `CsApp::default()` følgende funktion:
+Prerequisites: Rust toolchain (stable). On Windows, PowerShell is used in examples.
 
-```
-db::init_db(&db_path)
+Build:
+
+```powershell
+cargo build
 ```
 
-Denne funktion gør:
+Run the app:
 
-1. Opretter tabellerne `users`, `inventory` og `skins` hvis de ikke allerede findes.
-  
-2. Hvis `data/skins.json` findes:
-  
-  - Forsøger at parse filen
-    
-  - Kalder `add_skin` for hvert skin
-    
-  - Ignorerer fejl på individuelle skins, så startup er robust
-    
+```powershell
+cargo run
+```
 
-### Idempotens
+The native window will open with the main menu. The app uses `cs_trade_up.db` in the project root by default.
 
-`add_skin` bruger SQL‑kommandoen `INSERT OR IGNORE`, hvilket betyder:
+## Seeding the skins catalog
 
-- Samme skin‑navn bliver **ikke** tilføjet flere gange
-  
-- Seedning kan køres flere gange uden at skabe duplikater
-  
+The project includes a simple seeding flow. Seed data is read from `data/skins.json`, which should be a JSON array of skin objects. Each object may include the following fields:
 
----
+- `name` (required)
+- `rarity` (optional)
+- `price` (optional, numeric)
+- `collection` (optional)
+- `weapon_type` (optional)
+- `image_base64` (optional: a base64-encoded image string)
 
-# Kør seederen manuelt
+Auto-seed on launch
 
-Hvis du hellere vil køre seed‑processen selv (i stedet for auto‑seed), medfølger et lille CLI‑tool.
+- `CsApp::default()` calls `db::init_db(&db_path)` which will create required tables and attempt to parse `data/skins.json` and insert skins. The seeding is best-effort — individual insert failures are ignored so the app can start even if some entries are invalid.
 
-Fra projektets rodmappe, kør i PowerShell:
+Manual seeding
+
+If you prefer to run the seeder explicitly during development, a small binary is provided:
 
 ```powershell
 cargo run --bin seed_skins
 ```
 
-Dette vil:
+This reads `data/skins.json` and inserts each entry into the `skins` table. `add_skin` uses `INSERT OR IGNORE` to avoid duplicate names, making repeated runs idempotent with respect to `name`.
 
-- Læse `data/skins.json`
-  
-- Forsøge at indsætte alle skins i `skins`‑tabellen
-  
-
----
-
-# Eksempel på minimal JSON‑entry
+Example entry for `data/skins.json`:
 
 ```json
 {
@@ -117,8 +82,42 @@ Dette vil:
 }
 ```
 
-Her kan der altså ligges nye skins til databasen uden manuelt at have fat i sql lite
+Notes
 
-Billederne transformeres til BASE64 inden det ligges til databasen
+- If you want seeding to only run when the `skins` table is empty, this can be changed in `db::init_db`.
+- `image_base64` is supported and converted to egui textures; textures are cached together with the original image size so the UI can preserve aspect ratio.
+
+## Using the UI
+
+- Main menu: quick navigation to Buy, Sell, Tradeup, Open Skins, Inventory
+- Buy: browse boxed tiles for skins (images keep aspect ratio); buy button is disabled when you don't have enough balance
+- Sell: list of inventory items with internal scroll area
+- Open Skins: case-opening animation with weighted results; won skins are added to your inventory
+- Tradeup: select exactly 10 items of the same rarity and click "Trade Up" to consume them and get a higher-rarity item (the UI disables the Trade Up button until selection is valid)
+
+## Database schema (high-level)
+
+- `users` (id INTEGER PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT, balance REAL)
+- `skins` (id INTEGER PRIMARY KEY, name TEXT UNIQUE, rarity TEXT, price REAL, collection TEXT, weapon_type TEXT, image_base64 TEXT)
+- `inventory` (id INTEGER PRIMARY KEY, user_id INTEGER, skin_id INTEGER, created_at DATETIME)
+
+See `src/db.rs` for the exact schema and queries.
+
+## Development notes & TODOs
+
+- Inventory UI: boxed tile grid (matching Buy) and wrapping behavior
+- UX polish: disable Buy/Sell when unaffordable, highlight selections, tooltips for disabled buttons
+- Tests: currently there are no automated tests; adding unit tests for `scripts/` and DB helpers would help future changes
+
+## Contributing
+
+If you'd like new features, open an issue or send a PR. For seeding or skin data updates, edit `data/skins.json` and run the seeder.
 
 ---
+
+If you want, I can also:
+
+- Run the seeder now and show newly inserted rows from `cs_trade_up.db`.
+- Add example screenshot(s) and a short GIF demonstrating the case opening animation.
+
+Enjoy!

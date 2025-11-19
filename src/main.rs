@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod db;
 mod models;
 mod ui;
@@ -6,6 +8,7 @@ mod scripts;
 use eframe::egui;
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
+use std::{env, path::PathBuf};
 
 /// Small helper storing a texture handle and original image size
 pub struct TextureInfo {
@@ -68,7 +71,7 @@ pub struct CsApp {
 impl Default for CsApp {
     fn default() -> Self {
          // Initialize the database
-        let db_path = String::from("cs_trade_up.db");
+    let db_path = get_default_db_path();
        
         // Try to initialize the database, capture any error message for debugging
         let mut message = String::new();
@@ -88,18 +91,92 @@ impl Default for CsApp {
             tradeup_selection: Vec::new(),
             buy_selection: None,
             // Show a little splash screen for 10 seconds (ui/splash.rs)
-            splash_deadline: Instant::now() + Duration::from_secs(2),
+            splash_deadline: Instant::now() + Duration::from_secs(5),
         }
     }
 }
 
+/// Compute a sensible default DB file path for the current platform.
+///
+/// On Windows this prefers `%APPDATA%\CsTradeUp\cs_trade_up.db`.
+/// On other platforms it falls back to `$HOME/.local/share/CsTradeUp/cs_trade_up.db`
+/// or the current working directory if home/env vars are not available.
+fn get_default_db_path() -> String {
+    let file_name = "cs_trade_up.db";
+
+    if cfg!(target_os = "windows") {
+        if let Ok(appdata) = env::var("APPDATA") {
+            let mut dir = PathBuf::from(appdata);
+            dir.push("CsTradeUp");
+            // Try to create the directory, ignore errors (fallback handled below)
+            let _ = std::fs::create_dir_all(&dir);
+            dir.push(file_name);
+            return dir.to_string_lossy().into_owned();
+        }
+    } else {
+        if let Ok(home) = env::var("HOME") {
+            let mut dir = PathBuf::from(home);
+            dir.push(".local");
+            dir.push("share");
+            dir.push("CsTradeUp");
+            let _ = std::fs::create_dir_all(&dir);
+            dir.push(file_name);
+            return dir.to_string_lossy().into_owned();
+        }
+    }
+
+    // Fallback: use a file in the current working directory
+    file_name.to_string()
+}
+
 impl eframe::App for CsApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // If we're still in the splash period, show the splash screen
         if Instant::now() < self.splash_deadline {
+            // Apply splash-specific window/frame settings so the splash looks like
+            // a small undecorated centered dialog.
+            // Note: these calls are idempotent and safe to call every frame.
+            // Disable window decorations (no titlebar/toolbar)
+            frame.set_decorations(false);
+            // Keep the splash on top while visible
+            frame.set_always_on_top(true);
+
+            // Set a fixed splash window size roughly matching the splash card
+            let splash_w = 460.0f32;
+            let splash_h = 280.0f32;
+            frame.set_window_size(egui::Vec2::new(splash_w, splash_h));
+
+            // Try to center the window on the primary monitor. If the backend allows
+            // setting a window position this will place it roughly centered. If not
+            // supported the call is a no-op.
+            if let Some(monitor_size) = frame.info().window_info.monitor_size {
+                // monitor_size is a Vec2 in logical points
+                let center_x = monitor_size.x * 0.5;
+                let center_y = monitor_size.y * 0.5;
+                let pos = egui::Pos2::new(center_x - splash_w * 0.5, center_y - splash_h * 0.5);
+                frame.set_window_pos(pos);
+            }
+
             // forward to the dedicated splash module
             ui::splash::show_splash(self, ctx);
             return;
+        } else {
+            // Restore normal window behaviour once the splash is gone.
+            frame.set_decorations(true);
+            frame.set_always_on_top(false);
+
+            // Restore normal window size (match `initial_window_size` in `main`).
+            let normal_w = 700.0_f32;
+            let normal_h = 650.0_f32;
+            frame.set_window_size(egui::Vec2::new(normal_w, normal_h));
+
+            // Try to center the window on the primary monitor after resizing.
+            if let Some(monitor_size) = frame.info().window_info.monitor_size {
+                let center_x = monitor_size.x * 0.5;
+                let center_y = monitor_size.y * 0.5;
+                let pos = egui::Pos2::new(center_x - normal_w * 0.5, center_y - normal_h * 0.5);
+                frame.set_window_pos(pos);
+            }
         }
 
         match &self.screen {
@@ -118,7 +195,7 @@ impl eframe::App for CsApp {
 fn main() -> Result<(), eframe::Error> {
     // Set initial window size
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::Vec2::new(700.0, 480.0)),
+        initial_window_size: Some(egui::Vec2::new(700.0, 700.0)),
         ..Default::default()
     };
     // Run the application
